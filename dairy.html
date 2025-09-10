@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Digital Diary with Sentiment Detection</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f0f8ff; text-align: center; padding: 20px; }
+    h1 { color: #333; }
+    textarea { width: 80%; height: 120px; padding: 10px; margin: 15px 0; border-radius: 8px; border: 1px solid #aaa; }
+    button { padding: 10px 20px; border: none; background: #4CAF50; color: white; border-radius: 8px; cursor: pointer; }
+    button:hover { background: #45a049; }
+    ul { list-style: none; padding: 0; text-align:left; display:inline-block; max-width:80%; }
+    li { margin: 5px 0; word-wrap: break-word; }
+    canvas { margin-top: 20px; max-width: 600px; }
+  </style>
+</head>
+<body>
+  <h1>📔 My Digital Diary</h1>
+  <textarea id="entry" placeholder="Write your diary entry here..."></textarea><br>
+  <button onclick="saveEntry()">Save Entry</button>
+  <h2>Past Entries</h2>
+  <ul id="entries"></ul>
+  <h2>Weekly Mood Report</h2>
+  <canvas id="moodChart"></canvas>
+
+  <script>
+    function detectMood(text) {
+      const positiveWords = ["happy","great","good","awesome","love","fantastic"];
+      const negativeWords = ["sad","bad","angry","hate","terrible","upset"];
+      const lower = text.toLowerCase();
+      if (positiveWords.some(w => lower.includes(w))) return "Positive 😊";
+      if (negativeWords.some(w => lower.includes(w))) return "Negative 😞";
+      return "Neutral 😐";
+    }
+
+    function saveEntry() {
+      const text = document.getElementById("entry").value;
+      if (!text.trim()) { alert("Please write something!"); return; }
+
+      const entries = JSON.parse(localStorage.getItem("diaryEntries") || "[]");
+      const mood = detectMood(text);
+      const date = new Date().toLocaleDateString();
+
+      entries.push({ text, mood, date });
+      localStorage.setItem("diaryEntries", JSON.stringify(entries));
+
+      alert("Mood detected: " + mood);
+      document.getElementById("entry").value = "";
+      loadEntries();
+    }
+
+    function loadEntries() {
+      const entries = JSON.parse(localStorage.getItem("diaryEntries") || "[]");
+
+      // Display entries
+      const list = document.getElementById("entries");
+      list.innerHTML = "";
+      entries.forEach(e => {
+        const li = document.createElement("li");
+        li.textContent = ${e.date} → ${e.text} [Mood: ${e.mood}];
+        list.appendChild(li);
+      });
+
+      // Update Chart
+      updateChart(entries);
+    }
+
+    function updateChart(entries) {
+      const moodMap = { "Positive 😊": 1, "Neutral 😐": 0, "Negative 😞": -1 };
+      const colors = { "Positive 😊": "green", "Neutral 😐": "gray", "Negative 😞": "red" };
+
+      const recent = entries.slice(-7); // last 7 entries
+      if (recent.length === 0) {
+        const ctxEmpty = document.getElementById("moodChart").getContext("2d");
+        if (window.moodChart) window.moodChart.destroy();
+        window.moodChart = new Chart(ctxEmpty, {
+          type: "bar",
+          data: { labels: ["No entries yet"], datasets: [{ label: "Weekly Mood Report", data: [0], backgroundColor: ["gray"] }] },
+          options: { plugins: { legend: { display: false } }, scales: { y: { min: -1, max: 1 } } }
+        });
+        return;
+      }
+
+      const labels = recent.map(e => e.date);
+      const data = recent.map(e => moodMap[e.mood] ?? 0);
+      const barColors = recent.map(e => colors[e.mood] ?? "gray");
+
+      const ctx = document.getElementById("moodChart").getContext("2d");
+      if (window.moodChart) window.moodChart.destroy();
+
+      window.moodChart = new Chart(ctx, {
+        type: "bar",
+        data: { labels, datasets: [{ label: "Weekly Mood Report", data, backgroundColor: barColors }] },
+        options: {
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  if (context.raw === 1) return "😊 Positive";
+                  if (context.raw === 0) return "😐 Neutral";
+                  if (context.raw === -1) return "😞 Negative";
+                  return context.raw;
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              ticks: {
+                callback: function(value) {
+                  if (value === 1) return "😊 Positive";
+                  if (value === 0) return "😐 Neutral";
+                  if (value === -1) return "😞 Negative";
+                  return value;
+                }
+              },
+              min: -1,
+              max: 1
+            }
+          }
+        }
+      });
+    }
+
+    window.onload = loadEntries;
+  </script>
+</body>
+</html>
